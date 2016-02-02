@@ -124,17 +124,20 @@
 
 #define VOLTAGE         240 /* For non-TPM type sensors, set to line voltage, 
 such as 240; For Efergy Elite 3.0 TPM,  set to 1 */
+#define PULSES_PER_KWH 1000 /* value from electricity meter usually marked as <X>imp/kwh */
+#define PULSE_COUNT_PERIOD 30 /* Tells how many seconds pulses are counted before value is sent.
+for my efergy e2 opto it is 30 seconds */
 #define TARGET_UID     -1 /* The 3rd byte of the frame received is used to
 uniquely identify the transmitter. If set, only frames match this UID will be
 captured; otherwise, set to -1 to disable this feature */
 
-#define FRAMEBYTECOUNT          9  /* Attempt to decode up to this many bytes.   */
+#define FRAMEBYTECOUNT          13  /* Attempt to decode up to this many bytes.   */
 #define MINLOWBITS              3  /* Min number of positive samples for a logic 0 */
 #define MINHIGHBITS             9  /* Min number of positive samples for a logic 1 */
 #define MIN_POSITIVE_PREAMBLE_SAMPLES       40 /* Number of positive samples in  an efergy  preamble */
 #define MIN_NEGATIVE_PREAMBLE_SAMPLES       40 /* Number of negative samples for a valid preamble  */
 #define EXPECTED_BYTECOUNT_IF_CHECKSUM_USED 8
-#define EXPECTED_BYTECOUNT_IF_CRC_USED      9
+#define EXPECTED_BYTECOUNT_IF_CRC_USED      12
 
 int analysis_wavecenter;
 
@@ -331,8 +334,12 @@ void display_frame_data(int debug_level, char *msg, unsigned char bytes[], int b
             data_ok_str = "crc ok";
     }
 
+#if 0 /*TODO: these needed for other efergy than opto */
     double current_adc = (bytes[4] * 256) + bytes[5];
     double result  = (VOLTAGE * current_adc) / ((double) (32768) / (double) pow(2, (signed char) bytes[6]));
+#endif
+    int pulse_wattage = (PULSES_PER_KWH / 1000) * (3600 / PULSE_COUNT_PERIOD);
+    double result = (bytes[8] * pulse_wattage) - 1;
     if (debug_level > 0) {
         if (debug_level == 1)
             printf("%s  %s ", buffer, msg);
@@ -344,7 +351,7 @@ void display_frame_data(int debug_level, char *msg, unsigned char bytes[], int b
             printf("%02x ", bytes[i]);
 
         if (data_ok_str != (char *) 0)
-            printf(data_ok_str);
+            printf("%s",data_ok_str);
         else {
             checksum = compute_checksum(bytes, bytecount);
             crc = compute_crc(bytes, bytecount);
